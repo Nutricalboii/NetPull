@@ -4,6 +4,8 @@ import logging
 from typing import Dict, Optional
 from core.downloader import SegmentDownloader
 from core.ftp_downloader import FTPDownloader
+from core.video_downloader import VideoDownloader
+from core.torrent_downloader import TorrentDownloader
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("NetPull.Manager")
@@ -44,6 +46,10 @@ class DownloadManager:
             downloader = SegmentDownloader(download_id, url, filename, self.db_path)
         elif protocol == "ftp":
             downloader = FTPDownloader(download_id, url, filename, self.db_path)
+        elif protocol == "ytdlp":
+            downloader = VideoDownloader(download_id, url, filename, self.db_path)
+        elif protocol == "torrent":
+            downloader = TorrentDownloader(download_id, url, filename, self.db_path)
         else:
             logger.error(f"Unsupported protocol: {protocol}")
             return
