@@ -141,3 +141,20 @@ class SegmentDownloader:
     def pause(self):
         self.status = "paused"
         self.stop_event.set()
+
+    async def verify_checksum(self, expected_hash: str, algorithm: str = "sha256"):
+        import hashlib
+        logger.info(f"Verifying {algorithm} checksum for {self.filename}...")
+        
+        h = hashlib.new(algorithm)
+        with open(self.filename, "rb") as f:
+            while chunk := f.read(8192):
+                h.update(chunk)
+        
+        actual_hash = h.hexdigest()
+        if actual_hash.lower() == expected_hash.lower():
+            logger.info("Checksum verification passed!")
+            return True
+        else:
+            logger.error(f"Checksum verification failed! Expected: {expected_hash}, Actual: {actual_hash}")
+            return False
