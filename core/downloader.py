@@ -109,13 +109,27 @@ class SegmentDownloader:
                 with open(self.filename, "wb") as f:
                     if self.file_size > 0:
                         f.truncate(self.file_size)
-
                 if supports_ranges and self.file_size > 0:
                     chunk_size = self.file_size // self.num_chunks
                     for i in range(self.num_chunks):
                         start = i * chunk_size
                         end = (i + 1) * chunk_size - 1 if i < self.num_chunks - 1 else self.file_size - 1
-                        self.chunk_ranges.append({"start": start, "end": end, "downloaded": 0})
+                        
+                        chunk_file = f"{self.filename}.chunk{i}"
+                        downloaded = 0
+                        if os.path.exists(chunk_file):
+                            downloaded = os.path.getsize(chunk_file)
+                        
+                        if downloaded < (end - start + 1):
+                            self.chunk_ranges.append({
+                                "start": start + downloaded,
+                                "end": end,
+                                "index": i,
+                                "downloaded": downloaded
+                            })
+                            self.downloaded_bytes += downloaded
+                        else:
+                            self.downloaded_bytes += (end - start + 1)
                 else:
                     self.chunk_ranges = [{"start": 0, "end": self.file_size - 1 if self.file_size > 0 else -1, "downloaded": 0}]
 

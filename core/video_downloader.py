@@ -93,9 +93,27 @@ class VideoDownloader:
 
     @staticmethod
     def extract_metadata(url: str):
-        ydl_opts = {'quiet': True, 'no_warnings': True}
+        ydl_opts = {'quiet': True, 'no_warnings': True, 'extract_flat': 'in_playlist'}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+            
+            if 'entries' in info:
+                # It's a playlist
+                videos = []
+                for entry in info['entries']:
+                    videos.append({
+                        'id': entry.get('id'),
+                        'title': entry.get('title'),
+                        'url': entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}",
+                        'thumbnail': entry.get('thumbnail'),
+                        'duration': entry.get('duration')
+                    })
+                return {
+                    'type': 'playlist',
+                    'title': info.get('title'),
+                    'entries': videos
+                }
+            
             formats = []
             for f in info.get('formats', []):
                 if f.get('height'):
@@ -106,6 +124,7 @@ class VideoDownloader:
                         'filesize': f.get('filesize') or f.get('filesize_approx')
                     })
             return {
+                'type': 'video',
                 'title': info.get('title'),
                 'thumbnail': info.get('thumbnail'),
                 'duration': info.get('duration'),

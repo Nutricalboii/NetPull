@@ -16,7 +16,8 @@ import {
   FileVideo,
   Folder,
   Save,
-  Trash2
+  Trash2,
+  Monitor
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -76,21 +77,37 @@ function App() {
     }
   };
 
-  const addDownload = async (e) => {
-    e.preventDefault();
+  const addDownload = async (e, customData = null) => {
+    if (e) e.preventDefault();
+    const data = customData || {
+      url: newUrl,
+      protocol_type: protocol,
+      quality: selectedFormat,
+      thumbnail_url: metadata?.thumbnail,
+      filename: metadata?.title
+    };
+    
     try {
-      await axios.post(`${API_BASE}/downloads/`, {
-        url: newUrl,
-        protocol_type: protocol,
-        quality: selectedFormat,
-        thumbnail_url: metadata?.thumbnail,
-        filename: metadata?.title
-      });
-      resetModal();
+      await axios.post(`${API_BASE}/downloads/`, data);
+      if (!customData) resetModal();
       fetchDownloads();
     } catch (err) {
       alert("Failed to add download");
     }
+  };
+
+  const addAllPlaylist = async () => {
+    if (!metadata || metadata.type !== 'playlist') return;
+    for (const entry of metadata.entries) {
+      await addDownload(null, {
+        url: entry.url,
+        protocol_type: 'ytdlp',
+        quality: selectedFormat,
+        thumbnail_url: entry.thumbnail,
+        filename: entry.title
+      });
+    }
+    resetModal();
   };
 
   const resetModal = () => {
@@ -335,16 +352,16 @@ function App() {
           <motion.div 
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            className="bg-[#1e293b] w-full max-w-xl rounded-[2.5rem] p-10 border border-gray-700 shadow-2xl relative overflow-hidden"
+            className="bg-[#1e293b] w-full max-w-2xl rounded-[2.5rem] p-10 border border-gray-700 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
           >
-            <button onClick={resetModal} className="absolute top-6 right-6 p-2 hover:bg-gray-800 rounded-full text-gray-500 hover:text-white transition-all">
+            <button onClick={resetModal} className="absolute top-6 right-6 p-2 hover:bg-gray-800 rounded-full text-gray-500 hover:text-white transition-all z-20">
               <X className="w-6 h-6" />
             </button>
 
             <h2 className="text-3xl font-bold mb-8">New Download</h2>
             
-            <form onSubmit={addDownload} className="space-y-8">
-              <div>
+            <form onSubmit={addDownload} className="space-y-6 flex-1 overflow-hidden flex flex-col">
+              <div className="flex-shrink-0">
                 <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">URL / Magnet Link</label>
                 <div className="relative">
                   <input 
@@ -364,11 +381,31 @@ function App() {
                 </div>
               </div>
 
-              {metadata && (
+              {metadata && metadata.type === 'playlist' && (
+                <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[#0f172a]/30 rounded-3xl p-6 border border-gray-700">
+                  <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                    <h3 className="font-bold text-lg text-blue-400">Playlist: {metadata.title}</h3>
+                    <span className="text-xs text-gray-500">{metadata.entries.length} videos</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                    {metadata.entries.map((entry, idx) => (
+                      <div key={idx} className="flex gap-4 p-3 bg-gray-800/40 rounded-xl border border-gray-700/50">
+                        <img src={entry.thumbnail} className="w-24 h-14 object-cover rounded-lg border border-gray-700" alt="" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-200 truncate">{entry.title}</p>
+                          <p className="text-[10px] text-gray-500 mt-1">{Math.floor(entry.duration / 60)}:{(entry.duration % 60).toString().padStart(2, '0')}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {metadata && metadata.type === 'video' && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="bg-[#0f172a]/50 rounded-3xl p-6 border border-gray-700 flex gap-6"
+                  className="bg-[#0f172a]/50 rounded-3xl p-6 border border-gray-700 flex gap-6 flex-shrink-0"
                 >
                   <img src={metadata.thumbnail} className="w-40 h-24 object-cover rounded-xl border border-gray-700 shadow-lg" alt="" />
                   <div className="flex-1 min-w-0">
@@ -393,14 +430,24 @@ function App() {
                 </motion.div>
               )}
 
-              <div className="flex gap-4 pt-4">
-                <button 
-                  type="submit"
-                  disabled={extracting}
-                  className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed py-5 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-blue-900/30 active:scale-95"
-                >
-                  {metadata ? 'Start Fetching' : 'Add to Queue'}
-                </button>
+              <div className="flex gap-4 pt-4 mt-auto flex-shrink-0">
+                {metadata?.type === 'playlist' ? (
+                  <button 
+                    type="button"
+                    onClick={addAllPlaylist}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-blue-900/30 active:scale-95"
+                  >
+                    Add All {metadata.entries.length} Videos
+                  </button>
+                ) : (
+                  <button 
+                    type="submit"
+                    disabled={extracting}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed py-5 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-blue-900/30 active:scale-95"
+                  >
+                    {metadata ? 'Start Fetching' : 'Add to Queue'}
+                  </button>
+                )}
               </div>
             </form>
           </motion.div>
