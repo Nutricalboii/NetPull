@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+
+# SQLite
+core/*.db
+core/*.db-journal
+
+# Frontend
+ui/node_modules/
+ui/dist/
+ui/.env
+
+# Dist
+dist/*
+!dist/.gitkeep
+
+# System
+.DS_Store
+Thumbs.db
