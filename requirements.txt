@@ -7,3 +7,4 @@ python-multipart
 yt-dlp
 libtorrent
 # ffmpeg is a binary, but there are python wrappers if needed
+aioftp
