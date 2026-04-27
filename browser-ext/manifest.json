@@ -5,7 +5,8 @@
   "description": "Send links to NetPull Download Manager",
   "permissions": [
     "contextMenus",
-    "downloads"
+    "downloads",
+    "activeTab"
   ],
   "background": {
     "service_worker": "background.js"

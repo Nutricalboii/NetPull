@@ -2,13 +2,13 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "sendToNetPull",
     title: "Download with NetPull",
-    contexts: ["link", "image", "video", "audio"]
+    contexts: ["page", "link", "image", "video", "audio"]
   });
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "sendToNetPull") {
-    const url = info.linkUrl || info.srcUrl;
+    const url = info.linkUrl || info.srcUrl || info.pageUrl || tab.url;
     if (url) {
       sendToNetPull(url);
     }
