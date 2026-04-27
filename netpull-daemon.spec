@@ -3,7 +3,7 @@
 
 a = Analysis(
     ['daemon/main.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
     datas=[],
     hiddenimports=[],
