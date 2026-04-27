@@ -40,14 +40,25 @@ async def startup_event():
 
 @app.post("/downloads/")
 async def add_download(request: DownloadRequest):
+    protocol = request.protocol_type
+    
+    # Auto-detect ytdlp for known sites
+    video_sites = ['youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com', 'tiktok.com']
+    if protocol == "http" and any(site in request.url.lower() for site in video_sites):
+        protocol = "ytdlp"
+    
+    # Auto-detect torrent/magnet
+    if request.url.startswith("magnet:?") or request.url.endswith(".torrent"):
+        protocol = "torrent"
+
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             "INSERT INTO downloads (url, filename, protocol_type, status, thumbnail_url, resolution) VALUES (?, ?, ?, 'queued', ?, ?)",
-            (request.url, request.filename, request.protocol_type, request.thumbnail_url, request.resolution)
+            (request.url, request.filename, protocol, request.thumbnail_url, request.resolution)
         )
         await db.commit()
         download_id = cursor.lastrowid
-    return {"id": download_id, "status": "queued"}
+    return {"id": download_id, "status": "queued", "detected_protocol": protocol}
 
 @app.post("/extract/")
 async def extract_metadata(url: str):
