@@ -23,3 +23,7 @@ dist/*
 # System
 .DS_Store
 Thumbs.db
+*.webm
+*.mp4
+*.part
+downloads/
