@@ -60,6 +60,22 @@ async def add_download(request: DownloadRequest):
         download_id = cursor.lastrowid
     return {"id": download_id, "status": "queued", "detected_protocol": protocol}
 
+@app.get("/settings/")
+async def get_settings():
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM settings")
+        rows = await cursor.fetchall()
+        return {row['key']: row['value'] for row in rows}
+
+@app.post("/settings/")
+async def update_settings(settings: dict):
+    async with aiosqlite.connect(DB_PATH) as db:
+        for key, value in settings.items():
+            await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+        await db.commit()
+    return {"status": "updated"}
+
 @app.post("/extract/")
 async def extract_metadata(url: str):
     try:

@@ -10,10 +10,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("NetPull.Downloader")
 
 class SegmentDownloader:
-    def __init__(self, download_id: int, url: str, filename: str, db_path: str, num_chunks: int = 8, verify_ssl: bool = True):
+    def __init__(self, download_id: int, url: str, filename: str, db_path: str, num_chunks: int = 8, verify_ssl: bool = True, download_path: str = "downloads"):
         self.download_id = download_id
         self.url = url
-        self.filename = filename
         self.db_path = db_path
         self.num_chunks = num_chunks
         self.file_size = 0
@@ -22,6 +21,14 @@ class SegmentDownloader:
         self.status = "queued"
         self.stop_event = asyncio.Event()
         self.verify_ssl = verify_ssl
+        self.download_path = download_path
+        
+        # Ensure downloads directory exists
+        os.makedirs(self.download_path, exist_ok=True)
+        if filename:
+            self.filename = os.path.join(self.download_path, os.path.basename(filename))
+        else:
+            self.filename = None
 
     async def _update_db(self, db: aiosqlite.Connection):
         await db.execute(
@@ -40,9 +47,10 @@ class SegmentDownloader:
                 if not self.filename:
                     content_disposition = response.headers.get("Content-Disposition", "")
                     if "filename=" in content_disposition:
-                        self.filename = content_disposition.split("filename=")[1].strip('"')
+                        fname = content_disposition.split("filename=")[1].strip('"')
                     else:
-                        self.filename = self.url.split("/")[-1] or "download"
+                        fname = self.url.split("/")[-1] or "download"
+                    self.filename = os.path.join(self.download_path, fname)
                 
                 return "bytes" in accept_ranges
             except Exception as e:

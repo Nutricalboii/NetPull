@@ -9,13 +9,14 @@ import {
   Clock, 
   Plus, 
   Search,
-  Settings,
+  Settings as SettingsIcon,
   LayoutGrid,
   List as ListIcon,
   X,
   FileVideo,
-  Music,
-  Image as ImageIcon
+  Folder,
+  Save,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,11 +26,13 @@ function App() {
   const [downloads, setDownloads] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [protocol, setProtocol] = useState('http');
   const [extracting, setExtracting] = useState(false);
   const [metadata, setMetadata] = useState(null);
   const [selectedFormat, setSelectedFormat] = useState('best');
+  const [settings, setSettings] = useState({ download_path: 'downloads' });
 
   const fetchDownloads = async () => {
     try {
@@ -40,15 +43,26 @@ function App() {
     }
   };
 
+  const fetchSettings = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/settings/`);
+      setSettings(res.data);
+    } catch (err) {
+      console.error("Failed to fetch settings", err);
+    }
+  };
+
   useEffect(() => {
     fetchDownloads();
+    fetchSettings();
     const interval = setInterval(fetchDownloads, 2000);
     return () => clearInterval(interval);
   }, []);
 
   const handleUrlChange = async (url) => {
     setNewUrl(url);
-    if ((url.includes('youtube.com') || url.includes('youtu.be')) && url.length > 20) {
+    const lowerUrl = url.toLowerCase();
+    if ((lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) && url.length > 20) {
       setExtracting(true);
       setProtocol('ytdlp');
       try {
@@ -86,6 +100,15 @@ function App() {
     setIsAddModalOpen(false);
   };
 
+  const saveSettings = async () => {
+    try {
+      await axios.post(`${API_BASE}/settings/`, settings);
+      setIsSettingsOpen(false);
+    } catch (err) {
+      alert("Failed to save settings");
+    }
+  };
+
   const togglePause = async (id, currentStatus) => {
     try {
       const action = currentStatus === 'paused' ? 'resume' : 'pause';
@@ -93,6 +116,16 @@ function App() {
       fetchDownloads();
     } catch (err) {
       console.error("Action failed", err);
+    }
+  };
+
+  const deleteDownload = async (id) => {
+    if (!confirm("Are you sure you want to delete this download from list?")) return;
+    try {
+      await axios.delete(`${API_BASE}/downloads/${id}`);
+      fetchDownloads();
+    } catch (err) {
+      console.error("Delete failed", err);
     }
   };
 
@@ -145,8 +178,11 @@ function App() {
         </nav>
 
         <div className="mt-auto pt-6 border-t border-gray-700">
-          <button className="w-full text-left px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-800 transition-all flex items-center gap-3">
-            <Settings className="w-4 h-4" />
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="w-full text-left px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-800 transition-all flex items-center gap-3"
+          >
+            <SettingsIcon className="w-4 h-4" />
             Settings
           </button>
         </div>
@@ -178,6 +214,10 @@ function App() {
             <h2 className="text-lg font-semibold text-gray-300">
               {activeTab === 'all' ? 'All Downloads' : `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
             </h2>
+            <div className="text-xs text-gray-500 flex items-center gap-2">
+              <Folder className="w-3 h-3" />
+              {settings.download_path}
+            </div>
           </div>
 
           <AnimatePresence>
@@ -221,8 +261,11 @@ function App() {
                         {d.status === 'paused' ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
                       </button>
                     )}
-                    <button className="p-2.5 rounded-xl hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-all border border-transparent hover:border-gray-700">
-                      <Settings className="w-5 h-5" />
+                    <button 
+                      onClick={() => deleteDownload(d.id)}
+                      className="p-2.5 rounded-xl hover:bg-red-900/20 text-gray-400 hover:text-red-400 transition-all border border-transparent hover:border-red-900/30"
+                    >
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
@@ -237,15 +280,54 @@ function App() {
               </motion.div>
             ))}
           </AnimatePresence>
-
-          {filteredDownloads.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 opacity-30">
-              <Download className="w-16 h-16 mb-4" />
-              <p className="text-lg">Ready for action</p>
-            </div>
-          )}
         </main>
       </div>
+
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#1e293b] w-full max-w-lg rounded-[2rem] p-10 border border-gray-700 shadow-2xl"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-bold">Settings</h2>
+              <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-gray-800 rounded-full transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Default Download Path</label>
+                <div className="flex gap-2">
+                  <div className="flex-1 bg-[#0f172a] border border-gray-700 rounded-2xl py-4 px-5 text-gray-300 flex items-center gap-3">
+                    <Folder className="w-5 h-5 text-gray-500" />
+                    <input 
+                      type="text"
+                      value={settings.download_path}
+                      onChange={(e) => setSettings({...settings, download_path: e.target.value})}
+                      className="bg-transparent border-none focus:outline-none flex-1"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-2 px-1">Relative to project root or absolute path.</p>
+              </div>
+
+              <div className="pt-4">
+                <button 
+                  onClick={saveSettings}
+                  className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-900/30"
+                >
+                  <Save className="w-5 h-5" />
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Add Download Modal */}
       {isAddModalOpen && (
@@ -309,28 +391,6 @@ function App() {
                     </div>
                   </div>
                 </motion.div>
-              )}
-
-              {!metadata && (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Protocol</label>
-                  <div className="grid grid-cols-4 gap-3">
-                    {['http', 'ftp', 'ytdlp', 'torrent'].map(p => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setProtocol(p)}
-                        className={`py-3 rounded-2xl text-sm font-bold border transition-all ${
-                          protocol === p 
-                          ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40' 
-                          : 'bg-[#0f172a] border-gray-700 text-gray-500 hover:border-gray-500'
-                        }`}
-                      >
-                        {p.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               )}
 
               <div className="flex gap-4 pt-4">

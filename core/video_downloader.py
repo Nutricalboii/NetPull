@@ -9,13 +9,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("NetPull.VideoDownloader")
 
 class VideoDownloader:
-    def __init__(self, download_id: int, url: str, filename: str, db_path: str, quality: str = "best", thumbnail_url: str = None):
+    def __init__(self, download_id: int, url: str, filename: str, db_path: str, quality: str = "best", thumbnail_url: str = None, download_path: str = "downloads"):
         self.download_id = download_id
         self.url = url
         self.filename = filename
         self.db_path = db_path
         self.quality = quality
         self.thumbnail_url = thumbnail_url
+        self.download_path = download_path
         self.file_size = 0
         self.downloaded_bytes = 0
         self.status = "queued"
@@ -40,9 +41,10 @@ class VideoDownloader:
         
         ydl_opts = {
             'progress_hooks': [self._progress_hook],
-            'outtmpl': os.path.join(os.getcwd(), '%(title)s.%(ext)s'),
+            'outtmpl': os.path.join(self.download_path, '%(title)s.%(ext)s'),
             'quiet': True,
             'no_warnings': True,
+            'noplaylist': True,
         }
 
         if self.quality == "audio-only":

@@ -14,9 +14,10 @@ CREATE TABLE IF NOT EXISTS downloads (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TRIGGER IF NOT EXISTS update_download_timestamp 
-AFTER UPDATE ON downloads
-FOR EACH ROW
-BEGIN
-    UPDATE downloads SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-END;
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+-- Initialize default download path
+INSERT OR IGNORE INTO settings (key, value) VALUES ('download_path', 'downloads');

@@ -39,6 +39,11 @@ class DownloadManager:
             return
 
         async with aiosqlite.connect(self.db_path) as db:
+            # Get download path from settings
+            cursor = await db.execute("SELECT value FROM settings WHERE key = 'download_path'")
+            row = await cursor.fetchone()
+            download_path = row[0] if row else "downloads"
+
             # Find queued downloads ordered by creation date
             cursor = await db.execute(
                 "SELECT id, url, filename, protocol_type, thumbnail_url, resolution FROM downloads WHERE status = 'queued' ORDER BY created_at ASC LIMIT ?",
@@ -48,19 +53,19 @@ class DownloadManager:
             
             for row in rows:
                 download_id, url, filename, protocol, thumb, res = row
-                await self._start_download(download_id, url, filename, protocol, thumb, res)
+                await self._start_download(download_id, url, filename, protocol, thumb, res, download_path)
 
-    async def _start_download(self, download_id: int, url: str, filename: str, protocol: str, thumbnail_url: str = None, resolution: str = None):
+    async def _start_download(self, download_id: int, url: str, filename: str, protocol: str, thumbnail_url: str = None, resolution: str = None, download_path: str = "downloads"):
         logger.info(f"Starting download {download_id}: {url}")
         
         if protocol == "http":
-            downloader = SegmentDownloader(download_id, url, filename, self.db_path)
+            downloader = SegmentDownloader(download_id, url, filename, self.db_path, download_path=download_path)
         elif protocol == "ftp":
-            downloader = FTPDownloader(download_id, url, filename, self.db_path)
+            downloader = FTPDownloader(download_id, url, filename, self.db_path, download_path=download_path)
         elif protocol == "ytdlp":
-            downloader = VideoDownloader(download_id, url, filename, self.db_path, quality=resolution or "best", thumbnail_url=thumbnail_url)
+            downloader = VideoDownloader(download_id, url, filename, self.db_path, quality=resolution or "best", thumbnail_url=thumbnail_url, download_path=download_path)
         elif protocol == "torrent":
-            downloader = TorrentDownloader(download_id, url, filename, self.db_path)
+            downloader = TorrentDownloader(download_id, url, filename, self.db_path, download_path=download_path)
         else:
             logger.error(f"Unsupported protocol: {protocol}")
             return

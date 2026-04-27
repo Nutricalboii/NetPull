@@ -10,11 +10,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("NetPull.FTPDownloader")
 
 class FTPDownloader:
-    def __init__(self, download_id: int, url: str, filename: str, db_path: str):
+    def __init__(self, download_id: int, url: str, filename: str, db_path: str, download_path: str = "downloads"):
         self.download_id = download_id
         self.url = url
         self.filename = filename
         self.db_path = db_path
+        self.download_path = download_path
         self.file_size = 0
         self.downloaded_bytes = 0
         self.status = "queued"
@@ -54,7 +55,9 @@ class FTPDownloader:
                     await self._update_db(db)
 
                     async with client.download_stream(path) as stream:
-                        with open(self.filename, "wb") as f:
+                        save_path = os.path.join(self.download_path, self.filename)
+                        os.makedirs(self.download_path, exist_ok=True)
+                        with open(save_path, "wb") as f:
                             async for chunk in stream.iter_by_block():
                                 if self.stop_event.is_set():
                                     return
