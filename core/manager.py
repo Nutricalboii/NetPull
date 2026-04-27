@@ -41,16 +41,16 @@ class DownloadManager:
         async with aiosqlite.connect(self.db_path) as db:
             # Find queued downloads ordered by creation date
             cursor = await db.execute(
-                "SELECT id, url, filename, protocol_type FROM downloads WHERE status = 'queued' ORDER BY created_at ASC LIMIT ?",
+                "SELECT id, url, filename, protocol_type, thumbnail_url, resolution FROM downloads WHERE status = 'queued' ORDER BY created_at ASC LIMIT ?",
                 (self.max_concurrent - len(self.active_downloads),)
             )
             rows = await cursor.fetchall()
             
             for row in rows:
-                download_id, url, filename, protocol = row
-                await self._start_download(download_id, url, filename, protocol)
+                download_id, url, filename, protocol, thumb, res = row
+                await self._start_download(download_id, url, filename, protocol, thumb, res)
 
-    async def _start_download(self, download_id: int, url: str, filename: str, protocol: str):
+    async def _start_download(self, download_id: int, url: str, filename: str, protocol: str, thumbnail_url: str = None, resolution: str = None):
         logger.info(f"Starting download {download_id}: {url}")
         
         if protocol == "http":
@@ -58,7 +58,7 @@ class DownloadManager:
         elif protocol == "ftp":
             downloader = FTPDownloader(download_id, url, filename, self.db_path)
         elif protocol == "ytdlp":
-            downloader = VideoDownloader(download_id, url, filename, self.db_path)
+            downloader = VideoDownloader(download_id, url, filename, self.db_path, quality=resolution or "best", thumbnail_url=thumbnail_url)
         elif protocol == "torrent":
             downloader = TorrentDownloader(download_id, url, filename, self.db_path)
         else:

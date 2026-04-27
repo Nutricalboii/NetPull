@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS downloads (
     chunk_ranges TEXT, -- JSON string storing downloaded segments/ranges
     status TEXT CHECK(status IN ('queued', 'active', 'paused', 'done', 'failed')) DEFAULT 'queued',
     protocol_type TEXT CHECK(protocol_type IN ('http', 'torrent', 'ytdlp')) NOT NULL,
+    thumbnail_url TEXT,
+    resolution TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

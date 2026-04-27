@@ -11,7 +11,11 @@ import {
   Search,
   Settings,
   LayoutGrid,
-  List as ListIcon
+  List as ListIcon,
+  X,
+  FileVideo,
+  Music,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,6 +27,9 @@ function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [protocol, setProtocol] = useState('http');
+  const [extracting, setExtracting] = useState(false);
+  const [metadata, setMetadata] = useState(null);
+  const [selectedFormat, setSelectedFormat] = useState('best');
 
   const fetchDownloads = async () => {
     try {
@@ -39,19 +46,44 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleUrlChange = async (url) => {
+    setNewUrl(url);
+    if ((url.includes('youtube.com') || url.includes('youtu.be')) && url.length > 20) {
+      setExtracting(true);
+      setProtocol('ytdlp');
+      try {
+        const res = await axios.post(`${API_BASE}/extract/?url=${encodeURIComponent(url)}`);
+        setMetadata(res.data);
+      } catch (err) {
+        console.error("Metadata extraction failed", err);
+      } finally {
+        setExtracting(false);
+      }
+    }
+  };
+
   const addDownload = async (e) => {
     e.preventDefault();
     try {
       await axios.post(`${API_BASE}/downloads/`, {
         url: newUrl,
-        protocol_type: protocol
+        protocol_type: protocol,
+        quality: selectedFormat,
+        thumbnail_url: metadata?.thumbnail,
+        filename: metadata?.title
       });
-      setNewUrl('');
-      setIsAddModalOpen(false);
+      resetModal();
       fetchDownloads();
     } catch (err) {
       alert("Failed to add download");
     }
+  };
+
+  const resetModal = () => {
+    setNewUrl('');
+    setMetadata(null);
+    setProtocol('http');
+    setIsAddModalOpen(false);
   };
 
   const togglePause = async (id, currentStatus) => {
@@ -146,10 +178,6 @@ function App() {
             <h2 className="text-lg font-semibold text-gray-300">
               {activeTab === 'all' ? 'All Downloads' : `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
             </h2>
-            <div className="flex bg-[#1e293b] rounded-lg p-1">
-              <button className="p-1.5 rounded bg-[#0f172a] shadow-sm"><ListIcon className="w-4 h-4" /></button>
-              <button className="p-1.5 rounded text-gray-500 hover:text-gray-300 transition-colors"><LayoutGrid className="w-4 h-4" /></button>
-            </div>
           </div>
 
           <AnimatePresence>
@@ -163,13 +191,19 @@ function App() {
               >
                 <div className="flex items-center justify-between relative z-10">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="p-3 bg-gray-800 rounded-xl group-hover:bg-gray-700 transition-colors">
-                      {getStatusIcon(d.status)}
+                    <div className="relative w-24 h-14 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0 border border-gray-700">
+                      {d.thumbnail_url ? (
+                        <img src={d.thumbnail_url} className="w-full h-full object-cover" alt="thumb" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-600">
+                          {d.protocol_type === 'ytdlp' ? <FileVideo className="w-6 h-6" /> : <Download className="w-6 h-6" />}
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium truncate pr-4 text-gray-200">{d.filename || d.url}</h3>
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                        <span>{d.protocol_type.toUpperCase()}</span>
+                        <span className="bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">{d.protocol_type}</span>
                         <span>•</span>
                         <span>{(d.downloaded_bytes / (1024 * 1024)).toFixed(1)} MB / {(d.total_size / (1024 * 1024)).toFixed(1)} MB</span>
                         <span>•</span>
@@ -193,24 +227,21 @@ function App() {
                   </div>
                 </div>
 
-                <div className="relative h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="relative h-2 bg-gray-800 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${(d.downloaded_bytes / d.total_size * 100) || 0}%` }}
-                    className={`absolute inset-0 rounded-full ${d.status === 'done' ? 'bg-green-500' : d.status === 'failed' ? 'bg-red-500' : 'bg-blue-600'}`}
+                    className={`absolute inset-0 rounded-full transition-all duration-500 ${d.status === 'done' ? 'bg-green-500' : d.status === 'failed' ? 'bg-red-500' : 'bg-blue-600'}`}
                   />
                 </div>
-
-                {/* Subtle highlight effect */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
               </motion.div>
             ))}
           </AnimatePresence>
 
           {filteredDownloads.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 opacity-50">
+            <div className="flex flex-col items-center justify-center py-20 opacity-30">
               <Download className="w-16 h-16 mb-4" />
-              <p className="text-lg">No downloads found</p>
+              <p className="text-lg">Ready for action</p>
             </div>
           )}
         </main>
@@ -218,59 +249,97 @@ function App() {
 
       {/* Add Download Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6">
           <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-[#1e293b] w-full max-w-lg rounded-3xl p-8 border border-gray-700 shadow-2xl shadow-black/50"
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="bg-[#1e293b] w-full max-w-xl rounded-[2.5rem] p-10 border border-gray-700 shadow-2xl relative overflow-hidden"
           >
-            <h2 className="text-2xl font-bold mb-6">New Download</h2>
-            <form onSubmit={addDownload} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">URL / Magnet Link</label>
-                <input 
-                  autoFocus
-                  type="text"
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="https://example.com/file.zip"
-                  className="w-full bg-[#0f172a] border border-gray-700 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500 transition-all"
-                />
-              </div>
+            <button onClick={resetModal} className="absolute top-6 right-6 p-2 hover:bg-gray-800 rounded-full text-gray-500 hover:text-white transition-all">
+              <X className="w-6 h-6" />
+            </button>
 
+            <h2 className="text-3xl font-bold mb-8">New Download</h2>
+            
+            <form onSubmit={addDownload} className="space-y-8">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Protocol</label>
-                <div className="grid grid-cols-4 gap-3">
-                  {['http', 'ftp', 'ytdlp', 'torrent'].map(p => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setProtocol(p)}
-                      className={`py-2.5 rounded-xl text-sm font-medium border transition-all ${
-                        protocol === p 
-                        ? 'bg-blue-600 border-blue-500 text-white' 
-                        : 'bg-[#0f172a] border-gray-700 text-gray-400 hover:border-gray-500'
-                      }`}
-                    >
-                      {p.toUpperCase()}
-                    </button>
-                  ))}
+                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">URL / Magnet Link</label>
+                <div className="relative">
+                  <input 
+                    autoFocus
+                    type="text"
+                    value={newUrl}
+                    onChange={(e) => handleUrlChange(e.target.value)}
+                    placeholder="Paste your link here..."
+                    className="w-full bg-[#0f172a] border border-gray-700 rounded-2xl py-4 px-5 text-lg focus:outline-none focus:border-blue-500 transition-all placeholder:text-gray-700"
+                  />
+                  {extracting && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-blue-400 text-sm">
+                      <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      Extracting...
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button 
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="flex-1 bg-gray-800 hover:bg-gray-700 py-3 rounded-xl font-medium transition-all"
+              {metadata && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="bg-[#0f172a]/50 rounded-3xl p-6 border border-gray-700 flex gap-6"
                 >
-                  Cancel
-                </button>
+                  <img src={metadata.thumbnail} className="w-40 h-24 object-cover rounded-xl border border-gray-700 shadow-lg" alt="" />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-gray-200 line-clamp-2 mb-2">{metadata.title}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {['4K', '1080p', '720p', 'audio-only'].map(f => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setSelectedFormat(f)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            selectedFormat === f 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-800 text-gray-500 hover:text-gray-300'
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {!metadata && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Protocol</label>
+                  <div className="grid grid-cols-4 gap-3">
+                    {['http', 'ftp', 'ytdlp', 'torrent'].map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setProtocol(p)}
+                        className={`py-3 rounded-2xl text-sm font-bold border transition-all ${
+                          protocol === p 
+                          ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40' 
+                          : 'bg-[#0f172a] border-gray-700 text-gray-500 hover:border-gray-500'
+                        }`}
+                      >
+                        {p.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-4 pt-4">
                 <button 
                   type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-medium transition-all shadow-lg shadow-blue-900/20 active:scale-95"
+                  disabled={extracting}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed py-5 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-blue-900/30 active:scale-95"
                 >
-                  Start Download
+                  {metadata ? 'Start Fetching' : 'Add to Queue'}
                 </button>
               </div>
             </form>

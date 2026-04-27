@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import aiosqlite
 from core.manager import DownloadManager
+from core.video_downloader import VideoDownloader
 
 app = FastAPI(title="NetPull API")
 
@@ -30,6 +31,8 @@ class DownloadRequest(BaseModel):
     filename: Optional[str] = None
     protocol_type: str # http, ftp, ytdlp, torrent
     quality: Optional[str] = "best"
+    thumbnail_url: Optional[str] = None
+    resolution: Optional[str] = None
 
 @app.on_event("startup")
 async def startup_event():
@@ -39,12 +42,21 @@ async def startup_event():
 async def add_download(request: DownloadRequest):
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO downloads (url, filename, protocol_type, status) VALUES (?, ?, ?, 'queued')",
-            (request.url, request.filename, request.protocol_type)
+            "INSERT INTO downloads (url, filename, protocol_type, status, thumbnail_url, resolution) VALUES (?, ?, ?, 'queued', ?, ?)",
+            (request.url, request.filename, request.protocol_type, request.thumbnail_url, request.resolution)
         )
         await db.commit()
         download_id = cursor.lastrowid
     return {"id": download_id, "status": "queued"}
+
+@app.post("/extract/")
+async def extract_metadata(url: str):
+    try:
+        loop = asyncio.get_running_loop()
+        metadata = await loop.run_in_executor(None, VideoDownloader.extract_metadata, url)
+        return metadata
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/downloads/")
 async def list_downloads():

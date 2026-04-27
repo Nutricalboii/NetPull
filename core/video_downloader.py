@@ -9,12 +9,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("NetPull.VideoDownloader")
 
 class VideoDownloader:
-    def __init__(self, download_id: int, url: str, filename: str, db_path: str, quality: str = "best"):
+    def __init__(self, download_id: int, url: str, filename: str, db_path: str, quality: str = "best", thumbnail_url: str = None):
         self.download_id = download_id
         self.url = url
         self.filename = filename
         self.db_path = db_path
         self.quality = quality
+        self.thumbnail_url = thumbnail_url
         self.file_size = 0
         self.downloaded_bytes = 0
         self.status = "queued"
@@ -22,8 +23,8 @@ class VideoDownloader:
 
     async def _update_db(self, db: aiosqlite.Connection):
         await db.execute(
-            "UPDATE downloads SET downloaded_bytes = ?, total_size = ?, status = ?, filename = ? WHERE id = ?",
-            (self.downloaded_bytes, self.file_size, self.status, self.filename, self.download_id)
+            "UPDATE downloads SET downloaded_bytes = ?, total_size = ?, status = ?, filename = ?, thumbnail_url = ?, resolution = ? WHERE id = ?",
+            (self.downloaded_bytes, self.file_size, self.status, self.filename, getattr(self, 'thumbnail_url', None), self.quality, self.download_id)
         )
         await db.commit()
 
@@ -87,6 +88,27 @@ class VideoDownloader:
             self.status = "failed"
             async with aiosqlite.connect(self.db_path) as db:
                 await self._update_db(db)
+
+    @staticmethod
+    def extract_metadata(url: str):
+        ydl_opts = {'quiet': True, 'no_warnings': True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            formats = []
+            for f in info.get('formats', []):
+                if f.get('height'):
+                    formats.append({
+                        'format_id': f.get('format_id'),
+                        'height': f.get('height'),
+                        'ext': f.get('ext'),
+                        'filesize': f.get('filesize') or f.get('filesize_approx')
+                    })
+            return {
+                'title': info.get('title'),
+                'thumbnail': info.get('thumbnail'),
+                'duration': info.get('duration'),
+                'formats': formats
+            }
 
     def _download_sync(self, ydl_opts):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
