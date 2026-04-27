@@ -21,7 +21,18 @@ class DownloadManager:
         logger.info("Download Manager started.")
         while not self.stop_event.is_set():
             await self._check_queue()
+            await self._check_paused()
             await asyncio.sleep(2)
+
+    async def _check_paused(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT id FROM downloads WHERE status = 'paused'")
+            rows = await cursor.fetchall()
+            for (download_id,) in rows:
+                if download_id in self.active_downloads:
+                    logger.info(f"Pausing download {download_id}")
+                    task = self.active_downloads.pop(download_id)
+                    task.cancel()
 
     async def _check_queue(self):
         if len(self.active_downloads) >= self.max_concurrent:
